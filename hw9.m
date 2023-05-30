@@ -1,0 +1,74 @@
+%%%%%%%%;
+% some number of states: all in a (periodic) line. ;
+%%%%%%%%;
+n_point = 384;
+% The typical ensenble converge rate is very slow since the second largest
+% eigenvalue is very close to 1. The eiquilibrium of this markov model is
+% eigenvector of eigenvalue of 1.
+%%%%%%%%;
+% some number of neighbors count as 'close'. ;
+% i.e., given that you start at the x in the line: ;
+% --------x-------- ;
+% you can jump to any state with an 'o' in the line: ;
+% as well as 'jumping' to the original x. ;
+% -----oooxooo----- ;
+% so the number of states you can possibly transition to is: ;
+% 1 + 2*n_neighbor. ;
+% Note also that the domain is periodic, ;
+% so if you start near one edge you might jump over to the other side. ;
+% E.g., :
+% -x--------------- ;
+% jumps to: ;
+% oxooo----------oo ;
+%%%%%%%%;
+n_neighbor = 2;
+
+%%%%%%%%;
+% use sparse matrix data structure in matlab. ;
+%%%%%%%%;
+step_ = -n_neighbor:n_neighbor; %<-- a list of step sizes of length 1 + 2*n_neighbor. ;
+n_step = numel(step_); %<-- should be 1 + 2*n_neighbor. ;
+P_index_row_ = zeros(n_step*n_point,1);
+P_index_col_ = zeros(n_step*n_point,1);
+na=0;
+for npoint=0:n_point-1;
+for nstep=0:n_step-1;
+ncol = npoint;
+nrow = npoint + step_(1+nstep); %<-- might run over one of the edges. ;
+if (nrow< 0); nrow = nrow + n_point; end;
+if (nrow>=n_point); nrow = nrow - n_point; end;
+P_index_row_(1+na) = nrow;
+P_index_col_(1+na) = ncol;
+na = na+1;
+end;%for nstep=0:n_step-1;
+end;%for npoint=0:n_point-1;
+P__ = sparse(1+P_index_row_,1+P_index_col_,1/n_step,n_point,n_point);
+[V__,D__] = eigs(P__,6); D_ = diag(D__); %<-- note that the second largest eigenvalue is very close to 1. This implies very slow decay (for the lowest eigenmodes). ;
+n_t = ceil(log(0.5)/log(D_(1+1))); %<-- we make sure to take sufficiently many timesteps so that the slowest decaying mode will be reduced by a factor of 2. ;
+Y__ = zeros(n_point,n_t);
+%Y__(1+floor(n_point/2),1+0) = 1;
+Y__(floor(n_point/2),1+0) = 1; %<-- initial ensemble-distribution: starting with an ensemble all concentrated at a single point. ;
+for nt=1:n_t-1;
+Y__(:,1+nt) = P__*Y__(:,1+nt-1);
+end;%for nt=1:n_t-1;
+
+figure(1); clf;
+subplot(2,4,1);
+imagesc(P__,[0,1/n_step]); axis image;
+title('state-transition');
+nf=0;
+for nf=0:6-1;
+subplot(2,4,1+1+nf);
+plot(2*pi*(0:n_point-1)/n_point,V__(:,1+nf),'.-');
+xlim([0,2*pi]); xlabel('angle (radians)');
+ystd = max(abs(V__(:)))*1.25;
+ylim(ystd*[-1,+1]);
+grid on;
+title(sprintf('ev %d , ew %0.6f',1+nf,D_(1+nf)));
+end;%for nf=0:6-1;
+subplot(2,4,8);
+imagesc(log(Y__),[-9,0]);
+xlabel('time');
+ylabel('point');
+title('log(ensemble) evolution');
+set(gcf,'Position',1+[0,0,1024*2,1024]);
